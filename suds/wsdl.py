@@ -124,14 +124,21 @@ class Definitions(WObject):
     
     Tag = 'definitions'
 
-    def __init__(self, url, options):
+    def __init__(self, url, options, already_imported=None):
         """
         @param url: A URL to the WSDL.
         @type url: str
         @param options: An options dictionary.
         @type options: L{options.Options}
+        @param already_imported: The list of urls of already imported wsdls
+        @type already_imported: list of strings
         """
         log.debug('reading wsdl at: %s ...', url)
+        if not already_imported:
+            top_level = True
+            already_imported = [url]
+        else:
+            top_level = False
         reader = DocumentReader(options)
         d = reader.open(url)
         root = d.root()
@@ -149,12 +156,14 @@ class Definitions(WObject):
         self.bindings = {}
         self.services = []
         self.add_children(self.root)
-        self.children.sort()
         pmd = self.__metadata__.__print__
         pmd.excludes.append('children')
         pmd.excludes.append('wsdl')
         pmd.wrappers['schema'] = repr
-        self.open_imports()
+        self.open_imports(already_imported)
+        if not top_level:
+            return
+        self.children.sort()
         self.resolve()
         self.build_schema()
         self.set_wrapped()
@@ -196,10 +205,10 @@ class Definitions(WObject):
                 self.services.append(child)
                 continue
                 
-    def open_imports(self):
+    def open_imports(self, already_imported=None):
         """ Import the I{imported} WSDLs. """
         for imp in self.imports:
-            imp.load(self)
+            imp.load(self, already_imported)
                 
     def resolve(self):
         """ Tell all children to resolve themselves """
@@ -304,14 +313,19 @@ class Import(WObject):
         pmd = self.__metadata__.__print__
         pmd.wrappers['imported'] = repr
         
-    def load(self, definitions):
+    def load(self, definitions, already_imported=None):
         """ Load the object by opening the URL """
         url = self.location
         log.debug('importing (%s)', url)
         if '://' not in url:
             url = urljoin(definitions.url, url)
+        if already_imported and url in already_imported:
+            log.debug('skipping (%s), already imported', url)
+            return
+        else:
+            already_imported.append(url)
         options = definitions.options
-        d = Definitions(url, options)
+        d = Definitions(url, options, already_imported)
         if d.root.match(Definitions.Tag, wsdlns):
             self.import_definitions(definitions, d)
             return
@@ -326,6 +340,7 @@ class Import(WObject):
         definitions.messages.update(d.messages)
         definitions.port_types.update(d.port_types)
         definitions.bindings.update(d.bindings)
+        definitions.children.extend(d.children)
         self.imported = d
         log.debug('imported (WSDL):\n%s', d)
         
