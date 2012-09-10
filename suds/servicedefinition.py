@@ -124,7 +124,9 @@ class ServiceDefinition:
         i = 0
         namespaces.sort()
         for u in namespaces:
-            p = self.nextprefix()
+            p = self.wsdl.root.findPrefix(u)
+            if not p:
+                p = self.nextprefix()
             ns = (p, u)
             self.prefixes.append(ns)
             
