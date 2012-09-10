@@ -26,7 +26,7 @@ import sys
 # Project properties
 #
 
-__version__ = '0.4.1'
+__version__ = '0.4.1-polyconseil'
 __build__="(beta) R705-20101207"
 
 #
